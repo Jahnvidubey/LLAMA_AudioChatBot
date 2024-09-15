@@ -43,4 +43,4 @@ sounddevice
 pyttsx3
 groq
 scipy
-portaudio
+sounddevice
