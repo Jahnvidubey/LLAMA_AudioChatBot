@@ -1,7 +1,6 @@
 import streamlit as st
 import pyaudio
 import wave
-import pydub
 import numpy as np
 import pyttsx3
 import tempfile
@@ -15,50 +14,54 @@ import time
 model = load_model("base")
 
 # Initialize Groq client
-client = Groq(
-    api_key=os.environ.get("GROQ_API_KEY"),
-)
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
+if GROQ_API_KEY is None:
+    st.error("GROQ_API_KEY environment variable not set.")
+    st.stop()
+
+client = Groq(api_key=GROQ_API_KEY)
 
 # Initialize text-to-speech engine
 engine = pyttsx3.init()
 
 # Function to record audio
-def record_audio(duration=5, fs=44100):
-    chunk = 1024
-    format = pyaudio.paInt16
-    channels = 2
+def record_audio(duration=5):
+    CHUNK = 1024
+    FORMAT = pyaudio.paInt16
+    CHANNELS = 2
+    RATE = 44100
 
-    audio = pyaudio.PyAudio()
-    stream = audio.open(format=format,
-                        channels=channels,
-                        rate=fs,
-                        input=True,
-                        frames_per_buffer=chunk)
+    p = pyaudio.PyAudio()
+    stream = p.open(format=FORMAT,
+                    channels=CHANNELS,
+                    rate=RATE,
+                    input=True,
+                    frames_per_buffer=CHUNK)
 
-    frames = []
     st.write("Recording...")
-    for i in range(int(fs / chunk * duration)):
-        data = stream.read(chunk)
+    frames = []
+    for i in range(int(RATE / CHUNK * duration)):
+        data = stream.read(CHUNK)
         frames.append(data)
 
+    st.write("Recording complete.")
     stream.stop_stream()
     stream.close()
-    audio.terminate()
-    st.write("Recording complete.")
+    p.terminate()
 
-    wf = wave.open("temp.wav", 'wb')
-    wf.setnchannels(channels)
-    wf.setsampwidth(audio.get_sample_size(format))
-    wf.setframerate(fs)
+    # Create a temporary file
+    temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.wav')
+    temp_file_name = temp_file.name
+    temp_file.close()
+
+    wf = wave.open(temp_file_name, 'wb')
+    wf.setnchannels(CHANNELS)
+    wf.setsampwidth(p.get_sample_size(FORMAT))
+    wf.setframerate(RATE)
     wf.writeframes(b''.join(frames))
     wf.close()
 
-    return "temp.wav", fs
-
-# Function to save audio to a file
-def save_audio_file(audio_file_name, new_file_name):
-    sound = pydub.AudioSegment.from_wav(audio_file_name)
-    sound.export(new_file_name, format="wav")
+    return temp_file_name
 
 # Function to convert speech to text
 def transcribe_audio(file_name):
@@ -75,10 +78,10 @@ def generate_chat_response(prompt):
                 model="llama-3.1-70b-versatile",
             )
             return chat_completion.choices[0].message.content
-        except Exception as e:  # Catch all exceptions
+        except Exception as e:  
             if attempt < retry_attempts - 1:
                 st.write(f"Error occurred: {e}. Retrying in 5 seconds...")
-                time.sleep(5)  # Wait before retrying
+                time.sleep(5)  
             else:
                 st.write(f"Failed after {retry_attempts} attempts. Error: {e}")
                 raise
@@ -91,30 +94,31 @@ def text_to_speech(text):
     engine.runAndWait()
     return tmp_file_name
 
-st.title("Voice Chatbot")
+def main():
+    st.title("Voice Chatbot")
 
-if st.button("Record"):
-    audio_file_name, fs = record_audio()
-    new_file_name = "recorded_audio.wav"
-    save_audio_file(audio_file_name, new_file_name)
-    st.write("Audio recorded. Processing...")
-    
-    # Convert audio to text
-    text = transcribe_audio(new_file_name)
-    st.write(f"Transcribed text: {text}")
-    
-    # Get response from LLAMA model
-    response_text = generate_chat_response(text)
-    st.write(f"LLAMA response: {response_text}")
-    
-    # Convert response to speech
-    response_audio_file = text_to_speech(response_text)
-    st.write("Response generated. Playing audio...")
-    with open(response_audio_file, 'rb') as audio_file:
-        audio_bytes = audio_file.read()
-        st.audio(audio_bytes, format='audio/wav')
+    if st.button("Record"):
+        audio_file_name = record_audio()
+        st.write("Audio recorded. Processing...")
+        
+        # Convert audio to text
+        text = transcribe_audio(audio_file_name)
+        st.write(f"Transcribed text: {text}")
+        
+        # Get response from LLAMA model
+        response_text = generate_chat_response(text)
+        st.write(f"LLAMA response: {response_text}")
+        
+        # Convert response to speech
+        response_audio_file = text_to_speech(response_text)
+        st.write("Response generated. Playing audio...")
+        with open(response_audio_file, 'rb') as audio_file:
+            audio_bytes = audio_file.read()
+            st.audio(audio_bytes, format='audio/wav')
 
-    # Clean up temporary files
-    os.remove(audio_file_name)  
-    os.remove(new_file_name)  
-    os.remove(response_audio_file)
+        # Clean up temporary files
+        os.remove(audio_file_name)  
+        os.remove(response_audio_file)
+
+if __name__ == "__main__":
+    main()
