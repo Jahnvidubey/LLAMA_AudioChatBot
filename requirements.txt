@@ -44,3 +44,5 @@ groq
 scipy
 pydub
 pyaudio
+distutils
+setuptools
