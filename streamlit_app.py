@@ -1,5 +1,7 @@
 import streamlit as st
-import sounddevice as sd
+import pyaudio
+import wave
+import pydub
 import numpy as np
 import pyttsx3
 import tempfile
@@ -22,15 +24,41 @@ engine = pyttsx3.init()
 
 # Function to record audio
 def record_audio(duration=5, fs=44100):
+    chunk = 1024
+    format = pyaudio.paInt16
+    channels = 2
+
+    audio = pyaudio.PyAudio()
+    stream = audio.open(format=format,
+                        channels=channels,
+                        rate=fs,
+                        input=True,
+                        frames_per_buffer=chunk)
+
+    frames = []
     st.write("Recording...")
-    audio = sd.rec(int(duration * fs), samplerate=fs, channels=2, dtype='int16')
-    sd.wait()
+    for i in range(int(fs / chunk * duration)):
+        data = stream.read(chunk)
+        frames.append(data)
+
+    stream.stop_stream()
+    stream.close()
+    audio.terminate()
     st.write("Recording complete.")
-    return audio, fs
+
+    wf = wave.open("temp.wav", 'wb')
+    wf.setnchannels(channels)
+    wf.setsampwidth(audio.get_sample_size(format))
+    wf.setframerate(fs)
+    wf.writeframes(b''.join(frames))
+    wf.close()
+
+    return "temp.wav", fs
 
 # Function to save audio to a file
-def save_audio_file(audio, fs, file_name):
-    write(file_name, fs, audio)
+def save_audio_file(audio_file_name, new_file_name):
+    sound = pydub.AudioSegment.from_wav(audio_file_name)
+    sound.export(new_file_name, format="wav")
 
 # Function to convert speech to text
 def transcribe_audio(file_name):
@@ -66,14 +94,13 @@ def text_to_speech(text):
 st.title("Voice Chatbot")
 
 if st.button("Record"):
-    audio, fs = record_audio()
-    with tempfile.NamedTemporaryFile(delete=False, suffix='.wav') as audio_file:
-        audio_file_name = audio_file.name
-    save_audio_file(audio, fs, audio_file_name)
+    audio_file_name, fs = record_audio()
+    new_file_name = "recorded_audio.wav"
+    save_audio_file(audio_file_name, new_file_name)
     st.write("Audio recorded. Processing...")
     
     # Convert audio to text
-    text = transcribe_audio(audio_file_name)
+    text = transcribe_audio(new_file_name)
     st.write(f"Transcribed text: {text}")
     
     # Get response from LLAMA model
@@ -89,4 +116,5 @@ if st.button("Record"):
 
     # Clean up temporary files
     os.remove(audio_file_name)  
+    os.remove(new_file_name)  
     os.remove(response_audio_file)
