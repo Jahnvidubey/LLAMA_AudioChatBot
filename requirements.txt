@@ -43,3 +43,4 @@ pyttsx3
 groq
 scipy
 pydub
+pyaudio
