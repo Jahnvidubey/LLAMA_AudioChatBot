@@ -39,8 +39,7 @@ urllib3==2.2.1
 virtualenv==20.25.0
 streamlit
 ffmpeg-python
-sounddevice
 pyttsx3
 groq
 scipy
-sounddevice
+pydub
