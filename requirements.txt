@@ -46,5 +46,4 @@ pydub
 pyaudio==0.2.12
 distutils
 setuptools
---upgrade pip
 wheel
