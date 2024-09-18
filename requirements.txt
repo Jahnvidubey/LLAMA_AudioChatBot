@@ -44,6 +44,5 @@ groq
 scipy
 pydub
 pyaudio==0.2.12
-distutils
 setuptools
 wheel
