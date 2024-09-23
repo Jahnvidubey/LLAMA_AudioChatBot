@@ -46,3 +46,4 @@ pydub
 pyaudio==0.2.12
 setuptools
 wheel
+pyaudio
